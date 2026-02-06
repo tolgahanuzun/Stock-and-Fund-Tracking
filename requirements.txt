@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+apscheduler
+tefas-crawler
+requests
+beautifulsoup4
+sqladmin
+jinja2
+python-multipart
+httpx
