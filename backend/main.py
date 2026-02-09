@@ -1,4 +1,4 @@
-from backend.database import engine, Base
+from backend.database import engine
 from backend import models
 from backend.scheduler import start_scheduler
 from backend.routers import assets, portfolio
@@ -6,8 +6,9 @@ from backend.i18n_utils import current_language
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
+import backend.admin
 
 # Load environment variables
 load_dotenv()

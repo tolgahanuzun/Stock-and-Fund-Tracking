@@ -31,7 +31,7 @@ A simple, lightweight web application for tracking stock and fund portfolios.
 
 1. **Clone & Setup:**
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/tolgahanuzun/Stock-and-Fund-Tracking
    cd borsa-takip
    python3 -m venv venv
    source venv/bin/activate

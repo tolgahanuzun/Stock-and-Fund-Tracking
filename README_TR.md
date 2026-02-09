@@ -31,7 +31,7 @@ Hisse ve fon portföylerini takip etmek için basit, hafif bir web uygulaması.
 
 1. **Klonla ve Hazırla:**
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/tolgahanuzun/Stock-and-Fund-Tracking
    cd borsa-takip
    python3 -m venv venv
    source venv/bin/activate
