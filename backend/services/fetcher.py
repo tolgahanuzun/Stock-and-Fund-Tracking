@@ -1,6 +1,6 @@
 from tefas import Crawler
 from sqlalchemy.orm import Session
-from sqlalchemy import cast, Date
+from sqlalchemy import cast, Date, func
 from backend.models import Asset, PriceHistory, AssetType
 from datetime import datetime, date, timedelta, time
 import logging
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def fetch_fund_prices(db: Session):
     """
     Fetches latest prices for all funds in the database from TEFAS and saves them.
-    Optimized to minimize DB queries.
+    Optimized to minimize DB queries and prevent hourly duplicates.
     """
     tefas = Crawler()
     
@@ -31,9 +31,7 @@ def fetch_fund_prices(db: Session):
     start_dt = date.today() - timedelta(days=3)
     
     try:
-        # Fetching bulk data (TEFAS crawler might not support filtering by code in fetch, so we fetch all or range)
-        # Note: tefas-crawler fetches all funds if columns are not specified or specific call structure.
-        # Assuming fetch gets everything for the date range.
+        # Fetching bulk data
         result = tefas.fetch(start=start_dt.strftime("%Y-%m-%d"), 
                              columns=["code", "date", "price"])
         
@@ -48,56 +46,59 @@ def fetch_fund_prices(db: Session):
             logger.info("No data found for tracked funds in the last few days.")
             return
 
-        # 4. Prepare data for bulk processing
-        # We need to check which (asset_id, date) pairs already exist to avoid duplicates
-        # Get all relevant dates from the result
-        result_dates = result['date'].apply(lambda x: x.date() if hasattr(x, 'date') else x).unique()
+        # 4. Prepare data for hourly check
         
-        # Query existing records for these assets and dates
-        # Cast DateTime to Date for comparison (to ensure one record per day)
-        existing_records = db.query(PriceHistory.asset_id, cast(PriceHistory.date, Date)).filter(
+        # Get current time info
+        now = datetime.now()
+        current_hour_str = now.strftime('%Y-%m-%d %H') # '2026-02-09 11'
+        
+        # We need to know if there is ANY record for (asset_id) in THIS HOUR.
+        # Let's query records for TODAY only.
+        
+        today_start = datetime.combine(now.date(), time.min)
+        
+        existing_records = db.query(PriceHistory.asset_id, PriceHistory.date).filter(
             PriceHistory.asset_id.in_(fund_map.values()),
-            cast(PriceHistory.date, Date).in_(result_dates)
+            PriceHistory.date >= today_start # Greater than today 00:00
         ).all()
         
-        # Create a set of existing (asset_id, date) tuples
-        existing_set = set(existing_records)
+        # Build a set of (asset_id, 'YYYY-MM-DD HH')
+        # We process Python datetime objects here, which is safer than DB strftime.
+        existing_hourly_keys = set()
+        for rec in existing_records:
+            asset_id = rec[0]
+            rec_date = rec[1] # datetime object
+            if rec_date:
+                key = (asset_id, rec_date.strftime('%Y-%m-%d %H'))
+                existing_hourly_keys.add(key)
         
         new_records = []
-        
-        # Current time for timestamp
-        current_time = datetime.now().time()
         
         for index, row in result.iterrows():
             code = row['code']
             asset_id = fund_map.get(code)
             
-            raw_date = row['date']
-            # Base date (Year-Month-Day)
-            base_date = raw_date.date() if hasattr(raw_date, 'date') else raw_date
+            # Key for current hour check
+            current_key = (asset_id, current_hour_str)
             
-            price_val = float(row['price'])
-            
-            # Check if record exists for this DAY
-            if (asset_id, base_date) not in existing_set:
-                # Create datetime object with current time
-                price_datetime = datetime.combine(base_date, current_time)
+            if current_key not in existing_hourly_keys:
+                price_val = float(row['price'])
                 
                 new_records.append(PriceHistory(
                     asset_id=asset_id,
-                    date=price_datetime, # Now DateTime
+                    date=now, # Save with full precision
                     price=price_val
                 ))
-                # Add to set to prevent duplicates within the same batch if any
-                existing_set.add((asset_id, base_date))
+                # Add to set to prevent duplicates within the same batch
+                existing_hourly_keys.add(current_key)
         
         # 5. Bulk Insert
         if new_records:
             db.bulk_save_objects(new_records)
             db.commit()
-            logger.info(f"Added {len(new_records)} new price records.")
+            logger.info(f"Added {len(new_records)} new price records (Hourly check passed).")
         else:
-            logger.info("No new price records to add.")
+            logger.info(f"No new price records. All assets already have data for {current_hour_str}.")
             
     except Exception as e:
         logger.error(f"Data fetch error: {e}")

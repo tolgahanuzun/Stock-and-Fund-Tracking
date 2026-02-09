@@ -4,7 +4,7 @@ from backend.database import get_db
 from backend.models import Asset, AssetType, PriceHistory
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 
 router = APIRouter(
     prefix="/assets",
@@ -33,7 +33,7 @@ class AssetResponse(AssetBase):
         from_attributes = True # orm_mode for pydantic v2
 
 class PricePoint(BaseModel):
-    date: date
+    date: datetime # date -> datetime olarak değiştirildi
     price: float
 
 class AssetDetailResponse(AssetResponse):

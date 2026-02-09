@@ -1,0 +1,41 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+<div class="col-12">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Latest Asset Prices (Last 20)</h3>
+    </div>
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter text-nowrap">
+        <thead>
+          <tr>
+            <th>Asset Code</th>
+            <th>Asset Name</th>
+            <th>Type</th>
+            <th>Price</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in prices %}
+          <tr>
+            <td><span class="badge bg-blue-lt">{{ row.code }}</span></td>
+            <td>{{ row.name }}</td>
+            <td>
+                {% if row.type == 'FUND' %}
+                <span class="badge bg-green">FUND</span>
+                {% else %}
+                <span class="badge bg-purple">STOCK</span>
+                {% endif %}
+            </td>
+            <td><strong>{{ row.price }} TL</strong></td>
+            <td class="text-muted">{{ row.date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
