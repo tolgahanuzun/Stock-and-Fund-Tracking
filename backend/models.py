@@ -50,12 +50,15 @@ class PriceHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     asset_id = Column(Integer, ForeignKey("assets.id"))
-    date = Column(Date, index=True)
+    date = Column(DateTime, index=True)
     price = Column(Float)
     
     asset = relationship("Asset", back_populates="price_history")
 
-    # Bir varlığın aynı tarih için sadece bir fiyatı olabilir
+    # Bir varlığın aynı tarih için sadece bir fiyatı olabilir (Gün bazlı unique olması mantıklı, 
+    # ancak DateTime olunca saat farkından dolayı unique constraint sadece tam saniye eşleşmesinde çalışır.
+    # Eğer iş kuralı "günde 1 fiyat" ise bu constraint yetersiz kalabilir ama
+    # fetcher.py içinde gün bazlı kontrol yapıyoruz.)
     __table_args__ = (
         UniqueConstraint('asset_id', 'date', name='uix_price_asset_date'),
     )

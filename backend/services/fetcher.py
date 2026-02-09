@@ -1,7 +1,8 @@
 from tefas import Crawler
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, Date
 from backend.models import Asset, PriceHistory, AssetType
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 import logging
 
 # Logger configuration
@@ -53,9 +54,10 @@ def fetch_fund_prices(db: Session):
         result_dates = result['date'].apply(lambda x: x.date() if hasattr(x, 'date') else x).unique()
         
         # Query existing records for these assets and dates
-        existing_records = db.query(PriceHistory.asset_id, PriceHistory.date).filter(
+        # Cast DateTime to Date for comparison (to ensure one record per day)
+        existing_records = db.query(PriceHistory.asset_id, cast(PriceHistory.date, Date)).filter(
             PriceHistory.asset_id.in_(fund_map.values()),
-            PriceHistory.date.in_(result_dates)
+            cast(PriceHistory.date, Date).in_(result_dates)
         ).all()
         
         # Create a set of existing (asset_id, date) tuples
@@ -63,22 +65,31 @@ def fetch_fund_prices(db: Session):
         
         new_records = []
         
+        # Current time for timestamp
+        current_time = datetime.now().time()
+        
         for index, row in result.iterrows():
             code = row['code']
             asset_id = fund_map.get(code)
             
             raw_date = row['date']
-            price_date = raw_date.date() if hasattr(raw_date, 'date') else raw_date
+            # Base date (Year-Month-Day)
+            base_date = raw_date.date() if hasattr(raw_date, 'date') else raw_date
+            
             price_val = float(row['price'])
             
-            if (asset_id, price_date) not in existing_set:
+            # Check if record exists for this DAY
+            if (asset_id, base_date) not in existing_set:
+                # Create datetime object with current time
+                price_datetime = datetime.combine(base_date, current_time)
+                
                 new_records.append(PriceHistory(
                     asset_id=asset_id,
-                    date=price_date,
+                    date=price_datetime, # Now DateTime
                     price=price_val
                 ))
                 # Add to set to prevent duplicates within the same batch if any
-                existing_set.add((asset_id, price_date))
+                existing_set.add((asset_id, base_date))
         
         # 5. Bulk Insert
         if new_records:
