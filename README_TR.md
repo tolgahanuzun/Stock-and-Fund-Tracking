@@ -6,9 +6,9 @@ Hisse ve fon portföylerini takip etmek için basit, hafif bir web uygulaması.
 
 ## Ekran Görüntüleri
 
-| Ana Sayfa (Dashboard) | Yönetim Paneli (Admin) |
-|:---:|:---:|
-| <img src="img/index.png" alt="Ana Sayfa" width="400"/> | <img src="img/admin.png" alt="Admin Paneli" width="400"/> |
+| Ana Sayfa (Dashboard) | Varlık Detayı | Yönetim Paneli (Admin) |
+|:---:|:---:|:---:|
+| <img src="img/index.png" alt="Ana Sayfa" width="300"/> | <img src="img/detail.png" alt="Varlık Detayı" width="300"/> | <img src="img/admin.png" alt="Admin Paneli" width="300"/> |
 
 ## Teknoloji Altyapısı
 
@@ -21,7 +21,9 @@ Hisse ve fon portföylerini takip etmek için basit, hafif bir web uygulaması.
 ## Temel Özellikler
 
 - **Varlık Yönetimi:** Gelişmiş FastAdmin paneli ile fon/hisse yönetimi.
-- **Portföy Takibi:** Adet, maliyet ve güncel değer takibi.
+- **Portföy Takibi:** Adet, maliyet, güncel değer ve kâr/zarar takibi.
+- **Kullanıcı Paneli:** Profil fotoğrafı yükleme, şifre değiştirme ve kişisel bilgi güncelleme.
+- **Modern Arayüz:** Sidebar, Topbar ve Dark Mode destekli responsive tasarım.
 - **Otomatik Veri:** Günlük TEFAS veri çekme işlemleri (Background job).
 - **Grafikler:** Chart.js ile tarihsel fiyat grafikleri.
 - **Çoklu Dil:** İngilizce ve Türkçe desteği (Frontend & Admin).
@@ -65,6 +67,7 @@ Hisse ve fon portföylerini takip etmek için basit, hafif bir web uygulaması.
 - [x] Veritabanı Migrasyon Sistemi (Alembic)
 - [x] Admin Kullanıcı Yönetimi & Güvenlik
 - [x] Son Kullanıcı Girişi (JWT Auth - Frontend)
+- [x] Kullanıcı Paneli & Profil Yönetimi
 - [x] Kullanıcı Bazlı Portföy İzolasyonu
 - [ ] Mobil Uygulama (React Native/Flutter)
 - [ ] Telegram Bot Bildirimleri

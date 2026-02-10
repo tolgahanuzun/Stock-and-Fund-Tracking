@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     if (!Auth.requireAuth()) return;
     
+    // Initial Load
+    updateUserInfo();
     loadPortfolio();
     loadAssetsForSelect();
     
@@ -8,6 +10,31 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('addAssetForm').addEventListener('submit', handleAddAsset);
     document.getElementById('addTransactionForm').addEventListener('submit', handleAddTransaction);
 });
+
+// Update Topbar User Info
+async function updateUserInfo() {
+    try {
+        const response = await fetch(`${API_BASE}/auth/me`, {
+            headers: Auth.getHeaders()
+        });
+        
+        if (response.ok) {
+            const user = await response.json();
+            const usernameEl = document.getElementById('topbarUsername');
+            const avatarEl = document.getElementById('topbarAvatar');
+            
+            if (usernameEl) usernameEl.textContent = user.full_name || user.username;
+            if (avatarEl && user.avatar_url) {
+                // Add timestamp to force refresh if image changed
+                avatarEl.src = user.avatar_url + '?t=' + new Date().getTime();
+            } else if (avatarEl) {
+                 avatarEl.src = "https://via.placeholder.com/32";
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load user info', error);
+    }
+}
 
 // Override global changeLanguage to reload data
 const baseChangeLanguage = window.changeLanguage;
@@ -44,6 +71,13 @@ async function loadPortfolio() {
             totalProf += item.profit_loss;
             
             const row = document.createElement('tr');
+            
+            // Add profit/loss background class
+            if (item.profit_loss > 0) {
+                row.classList.add('row-profit');
+            } else if (item.profit_loss < 0) {
+                row.classList.add('row-loss');
+            }
             
             const profitClass = item.profit_loss >= 0 ? 'profit' : 'loss';
             const profitSign = item.profit_loss >= 0 ? '+' : '';

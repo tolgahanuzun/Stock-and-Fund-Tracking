@@ -6,9 +6,9 @@ A modern, lightweight web application for tracking your stock and fund investmen
 
 ## Screenshots
 
-| Dashboard (Dark Mode) | Admin Panel |
-|:---:|:---:|
-| <img src="img/index.png" alt="Dashboard" width="400"/> | <img src="img/admin.png" alt="Admin Panel" width="400"/> |
+| Dashboard (Dark Mode) | Asset Detail | Admin Panel |
+|:---:|:---:|:---:|
+| <img src="img/index.png" alt="Dashboard" width="300"/> | <img src="img/detail.png" alt="Asset Detail" width="300"/> | <img src="img/admin.png" alt="Admin Panel" width="300"/> |
 
 ## Tech Stack
 
@@ -21,8 +21,9 @@ A modern, lightweight web application for tracking your stock and fund investmen
 ## Key Features
 
 - **Asset Management:** Manage funds/stocks via advanced FastAdmin panel.
-- **Portfolio Tracking:** Track quantity, cost, and current value.
-- **Modern Dashboard:** Responsive sidebar layout with Dark Mode support.
+- **Portfolio Tracking:** Track quantity, cost, current value and profit/loss.
+- **User Panel:** Profile photo upload, password change, and personal info management.
+- **Modern UI:** Responsive sidebar layout with Topbar and Dark Mode support.
 - **Automated Data:** Daily price updates from TEFAS background jobs.
 - **Charts:** Historical price visualization with Chart.js.
 - **Multi-language:** English and Turkish support (Frontend & Admin).
@@ -66,6 +67,7 @@ A modern, lightweight web application for tracking your stock and fund investmen
 - [x] Database Migration System (Alembic)
 - [x] Admin User Management & Security
 - [x] End-User Authentication (JWT - Frontend)
+- [x] User Profile Management & Avatar
 - [x] Portfolio Data Isolation per User
 - [ ] Mobile App (React Native/Flutter)
 - [ ] Telegram Bot Notifications
