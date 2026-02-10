@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    if (!Auth.requireAuth()) return;
+    
     loadPortfolio();
     loadAssetsForSelect();
     
@@ -17,7 +19,15 @@ window.changeLanguage = function(lang) {
 
 async function loadPortfolio() {
     try {
-        const response = await fetch(`${API_BASE}/portfolio/?user_id=1`);
+        const response = await fetch(`${API_BASE}/portfolio/`, {
+            headers: Auth.getHeaders()
+        });
+        
+        if (response.status === 401) {
+            Auth.handleUnauthorized();
+            return;
+        }
+        
         const data = await response.json();
         
         const tableBody = document.getElementById('portfolioTable');
@@ -74,7 +84,15 @@ async function loadPortfolio() {
 
 async function loadAssetsForSelect() {
     try {
-        const response = await fetch(`${API_BASE}/assets/`);
+        const response = await fetch(`${API_BASE}/assets/`, {
+            headers: Auth.getHeaders()
+        });
+        
+        if (response.status === 401) {
+            Auth.handleUnauthorized();
+            return;
+        }
+
         const data = await response.json();
         
         const select = document.getElementById('assetSelect');
@@ -104,11 +122,14 @@ async function handleAddAsset(e) {
     try {
         const response = await fetch(`${API_BASE}/assets/`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: Auth.getHeaders(),
             body: JSON.stringify(data)
         });
+        
+        if (response.status === 401) {
+            Auth.handleUnauthorized();
+            return;
+        }
         
         if (response.ok) {
             alert(t.alert_asset_added);
@@ -131,18 +152,20 @@ async function handleAddTransaction(e) {
     const data = {
         asset_id: parseInt(formData.get('asset_id')),
         quantity: parseFloat(formData.get('quantity')),
-        average_cost: parseFloat(formData.get('average_cost')),
-        user_id: 1
+        average_cost: parseFloat(formData.get('average_cost'))
     };
     
     try {
         const response = await fetch(`${API_BASE}/portfolio/transaction`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: Auth.getHeaders(),
             body: JSON.stringify(data)
         });
+        
+        if (response.status === 401) {
+            Auth.handleUnauthorized();
+            return;
+        }
         
         if (response.ok) {
             alert(t.alert_transaction_added);

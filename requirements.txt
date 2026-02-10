@@ -10,3 +10,5 @@ sqladmin
 jinja2
 python-multipart
 httpx
+python-jose[cryptography]
+passlib[bcrypt]

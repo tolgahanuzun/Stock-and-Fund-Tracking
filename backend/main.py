@@ -1,7 +1,7 @@
 from backend.database import engine
 from backend import models
 from backend.scheduler import start_scheduler
-from backend.routers import assets, portfolio
+from backend.routers import assets, portfolio, auth
 from backend.i18n_utils import current_language
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
@@ -56,6 +56,7 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 # Include routers
 app.include_router(assets.router)
 app.include_router(portfolio.router)
+app.include_router(auth.router)
 
 # Setup admin panel
 app.mount("/admin", fastapi_app)
