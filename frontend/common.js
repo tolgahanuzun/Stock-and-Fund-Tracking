@@ -42,7 +42,10 @@ const TRANSLATIONS = {
         loading: "Loading...",
         sidebar_dashboard: "Dashboard",
         sidebar_assets: "Assets",
-        sidebar_settings: "Settings"
+        sidebar_settings: "Settings",
+        sidebar_profile: "Profile",
+        profile_settings: "Profile Settings",
+        logout: "Logout"
     },
     tr: {
         app_title: "MyVault",
@@ -83,7 +86,10 @@ const TRANSLATIONS = {
         loading: "Yükleniyor...",
         sidebar_dashboard: "Kontrol Paneli",
         sidebar_assets: "Varlıklar",
-        sidebar_settings: "Ayarlar"
+        sidebar_settings: "Ayarlar",
+        sidebar_profile: "Profil",
+        profile_settings: "Profil Ayarları",
+        logout: "Çıkış Yap"
     }
 };
 
@@ -156,13 +162,50 @@ function applyTheme() {
 // Helper: Toggle Sidebar - Global
 window.toggleSidebar = function() {
     document.getElementById('sidebar').classList.toggle('active');
+    document.querySelector('.overlay')?.classList.toggle('active');
+}
+
+// Load User Data for Layout (Topbar)
+async function loadLayoutUserData() {
+    if (typeof Auth === 'undefined' || !Auth.isAuthenticated()) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/auth/me`, {
+            headers: Auth.getHeaders()
+        });
+        
+        if (response.ok) {
+            const user = await response.json();
+            const usernameEl = document.getElementById('topbarUsername');
+            const avatarEl = document.getElementById('topbarAvatar');
+            
+            if (usernameEl) usernameEl.textContent = user.full_name || user.username;
+            if (avatarEl && user.avatar_url) {
+                // Add timestamp to force refresh if image changed
+                avatarEl.src = user.avatar_url + '?t=' + new Date().getTime();
+            } else if (avatarEl) {
+                 avatarEl.src = "https://via.placeholder.com/32";
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load user info', error);
+    }
 }
 
 // Auto-run on load
 document.addEventListener('DOMContentLoaded', () => {
     updatePageTranslations();
     applyTheme();
+    loadLayoutUserData();
     
+    // Mobile Sidebar Overlay
+    if (!document.querySelector('.overlay')) {
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        overlay.onclick = window.toggleSidebar;
+        document.body.appendChild(overlay);
+    }
+
     // Sidebar toggle is safe to keep as event listener
     const sidebarBtn = document.getElementById('sidebarCollapse');
     if (sidebarBtn) sidebarBtn.addEventListener('click', window.toggleSidebar);

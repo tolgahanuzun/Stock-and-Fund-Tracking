@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import backend.admin
+import os
 
 # Load environment variables
 load_dotenv()
@@ -64,3 +65,14 @@ app.mount("/admin", fastapi_app)
 @app.get("/")
 async def read_root():
     return FileResponse('frontend/index.html')
+
+@app.get("/profile.html")
+async def read_profile():
+    return FileResponse('frontend/profile.html')
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    file_path = "frontend/static/favicon.ico"
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    return Response(status_code=404)
