@@ -26,7 +26,8 @@ A modern, lightweight web application for tracking your stock and fund investmen
 - **Automated Data:** Daily price updates from TEFAS background jobs.
 - **Charts:** Historical price visualization with Chart.js.
 - **Multi-language:** English and Turkish support (Frontend & Admin).
-- **Security:** Secure login system for Admin panel.
+- **Security:** Secure JWT authentication for users & Admin panel protection.
+- **Portfolio Isolation:** Users manage their own isolated portfolio data.
 
 ## Installation
 
@@ -64,8 +65,9 @@ A modern, lightweight web application for tracking your stock and fund investmen
 - [x] Modern UI Overhaul (Sidebar & Dark Mode)
 - [x] Database Migration System (Alembic)
 - [x] Admin User Management & Security
+- [x] End-User Authentication (JWT - Frontend)
+- [x] Portfolio Data Isolation per User
 - [ ] Mobile App (React Native/Flutter)
 - [ ] Telegram Bot Notifications
-- [ ] End-User Authentication (JWT - Frontend)
 - [ ] Foreign Stocks & Crypto Support
 - [ ] Data Export (CSV/Excel)

@@ -25,7 +25,8 @@ Hisse ve fon portföylerini takip etmek için basit, hafif bir web uygulaması.
 - **Otomatik Veri:** Günlük TEFAS veri çekme işlemleri (Background job).
 - **Grafikler:** Chart.js ile tarihsel fiyat grafikleri.
 - **Çoklu Dil:** İngilizce ve Türkçe desteği (Frontend & Admin).
-- **Güvenlik:** Admin paneli için güvenli giriş sistemi.
+- **Güvenlik:** Kullanıcılar için güvenli JWT kimlik doğrulama & Admin paneli koruması.
+- **Portföy İzolasyonu:** Her kullanıcı kendi portföy verilerini yönetir.
 
 ## Kurulum
 
@@ -63,8 +64,9 @@ Hisse ve fon portföylerini takip etmek için basit, hafif bir web uygulaması.
 - [x] Modern UI (Sidebar & Dark Mode)
 - [x] Veritabanı Migrasyon Sistemi (Alembic)
 - [x] Admin Kullanıcı Yönetimi & Güvenlik
+- [x] Son Kullanıcı Girişi (JWT Auth - Frontend)
+- [x] Kullanıcı Bazlı Portföy İzolasyonu
 - [ ] Mobil Uygulama (React Native/Flutter)
 - [ ] Telegram Bot Bildirimleri
-- [ ] Son Kullanıcı Girişi (JWT Auth - Frontend)
 - [ ] Yabancı Hisse & Kripto Desteği
 - [ ] Veri Dışa Aktarma (CSV/Excel)

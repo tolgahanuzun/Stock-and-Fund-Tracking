@@ -1,6 +1,8 @@
 let chartInstance = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (!Auth.requireAuth()) return;
+
     // Get Asset ID from URL
     const urlParams = new URLSearchParams(window.location.search);
     const assetId = urlParams.get('id');
@@ -33,7 +35,15 @@ window.changeLanguage = function(lang) {
 
 async function loadAssetDetail(id) {
     try {
-        const response = await fetch(`${API_BASE}/assets/${id}`);
+        const response = await fetch(`${API_BASE}/assets/${id}`, {
+            headers: Auth.getHeaders()
+        });
+        
+        if (response.status === 401) {
+            Auth.handleUnauthorized();
+            return;
+        }
+
         if (!response.ok) throw new Error("Failed to fetch asset");
         
         const asset = await response.json();
@@ -59,7 +69,15 @@ async function loadAssetDetail(id) {
 
 async function loadMyPosition(id) {
     try {
-        const response = await fetch(`${API_BASE}/portfolio/asset/${id}?user_id=1`);
+        const response = await fetch(`${API_BASE}/portfolio/asset/${id}`, {
+            headers: Auth.getHeaders()
+        });
+
+        if (response.status === 401) {
+            Auth.handleUnauthorized();
+            return;
+        }
+
         if (!response.ok) throw new Error("Failed to fetch position");
         
         const item = await response.json();

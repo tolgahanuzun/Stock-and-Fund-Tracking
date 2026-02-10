@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, tuple_
+from sqlalchemy import select, func
 from backend.database import get_db
 from backend.models import Portfolio, Asset, PriceHistory, User
+from backend.security import get_current_user
 from pydantic import BaseModel
-from typing import List, Optional
-from datetime import date
+from typing import List
 
 router = APIRouter(
     prefix="/portfolio",
@@ -18,7 +18,8 @@ class PortfolioBase(BaseModel):
     average_cost: float
 
 class TransactionCreate(PortfolioBase):
-    user_id: int = 1 # Default user
+    pass 
+    # user_id is removed, inferred from token
 
 class PortfolioItemResponse(PortfolioBase):
     id: int
@@ -33,9 +34,12 @@ class PortfolioItemResponse(PortfolioBase):
         from_attributes = True
 
 @router.get("/", response_model=List[PortfolioItemResponse])
-async def read_portfolio(user_id: int = 1, db: AsyncSession = Depends(get_db)):
+async def read_portfolio(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     # 1. Fetch user portfolio
-    result = await db.execute(select(Portfolio).filter(Portfolio.user_id == user_id))
+    result = await db.execute(select(Portfolio).filter(Portfolio.user_id == current_user.id))
     items = result.scalars().all()
     
     if not items:
@@ -45,13 +49,11 @@ async def read_portfolio(user_id: int = 1, db: AsyncSession = Depends(get_db)):
     asset_ids = [item.asset_id for item in items]
 
     # 3. Batch Fetch Latest Prices (Optimized Query)
-    # Subquery to find the max date for each asset
     subquery = select(
         PriceHistory.asset_id,
         func.max(PriceHistory.date).label('max_date')
     ).filter(PriceHistory.asset_id.in_(asset_ids)).group_by(PriceHistory.asset_id).subquery()
 
-    # Join to get the prices
     latest_prices_stmt = select(PriceHistory).join(
         subquery,
         (PriceHistory.asset_id == subquery.c.asset_id) & 
@@ -65,22 +67,6 @@ async def read_portfolio(user_id: int = 1, db: AsyncSession = Depends(get_db)):
     
     result_list = []
     for item in items:
-        # Asset info (Lazy load might not work well in async without explicit options, 
-        # so we might need to eager load. However, let's try to rely on simple access 
-        # if the session is still active, or better: explicit join)
-        
-        # To avoid AsyncIO error with lazy loading, let's fetch asset explicitly if not loaded
-        # Or better: update the initial query to joinedload(Portfolio.asset)
-        # For now, let's assume we need to fetch asset if it's missing or just fetch it.
-        # Ideally, we should use: .options(joinedload(Portfolio.asset)) in the first query.
-        
-        # Let's do a quick fetch for asset if needed, or update the initial query.
-        # Updating the initial query is cleaner. 
-        # But to match previous logic structure, let's just fetch it here if not present.
-        # Actually, for N items, N queries is bad.
-        # Let's just fetch asset here for simplicity as N is small.
-        # Better: use `await db.get(Asset, item.asset_id)`
-        
         asset = await db.get(Asset, item.asset_id)
         
         # Get price from map
@@ -107,14 +93,17 @@ async def read_portfolio(user_id: int = 1, db: AsyncSession = Depends(get_db)):
     return result_list
 
 @router.get("/asset/{asset_id}", response_model=PortfolioItemResponse)
-async def read_portfolio_asset(asset_id: int, user_id: int = 1, db: AsyncSession = Depends(get_db)):
-    # This endpoint is single item
+async def read_portfolio_asset(
+    asset_id: int, 
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     result = await db.execute(
-        select(Portfolio).filter(Portfolio.user_id == user_id, Portfolio.asset_id == asset_id)
+        select(Portfolio).filter(Portfolio.user_id == current_user.id, Portfolio.asset_id == asset_id)
     )
     item = result.scalars().first()
     
-    # Check if user owns it or not
+    # Check if asset exists
     asset = await db.get(Asset, asset_id)
     if not asset:
          raise HTTPException(status_code=404, detail="Asset not found")
@@ -131,6 +120,9 @@ async def read_portfolio_asset(asset_id: int, user_id: int = 1, db: AsyncSession
     current_price = last_price_entry.price if last_price_entry else 0
 
     if not item:
+        # User doesn't own this asset yet, return empty/zero state
+        # But maybe we want to allow viewing detail even if not owned?
+        # The logic below returns a zero-quantity portfolio item which is fine for "Add" context.
         return PortfolioItemResponse(
             id=0,
             asset_id=asset.id,
@@ -144,7 +136,6 @@ async def read_portfolio_asset(asset_id: int, user_id: int = 1, db: AsyncSession
             profit_loss_percent=0
         )
     
-    # Calculate for owned item
     total_value = item.quantity * current_price
     cost_basis = item.quantity * item.average_cost
     profit_loss = total_value - cost_basis
@@ -164,19 +155,14 @@ async def read_portfolio_asset(asset_id: int, user_id: int = 1, db: AsyncSession
     )
 
 @router.post("/transaction")
-async def create_transaction(transaction: TransactionCreate, db: AsyncSession = Depends(get_db)):
-    # Check if user exists, create if not (for convenience)
-    user_result = await db.execute(select(User).filter(User.id == transaction.user_id))
-    user = user_result.scalars().first()
-    
-    if not user:
-        user = User(id=transaction.user_id, username="default", full_name="Default User")
-        db.add(user)
-        await db.commit()
-    
+async def create_transaction(
+    transaction: TransactionCreate, 
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     # Check if asset exists in portfolio
     portfolio_result = await db.execute(select(Portfolio).filter(
-        Portfolio.user_id == transaction.user_id,
+        Portfolio.user_id == current_user.id,
         Portfolio.asset_id == transaction.asset_id
     ))
     portfolio_item = portfolio_result.scalars().first()
@@ -191,7 +177,7 @@ async def create_transaction(transaction: TransactionCreate, db: AsyncSession = 
         portfolio_item.average_cost = new_average_cost
     else:
         portfolio_item = Portfolio(
-            user_id=transaction.user_id,
+            user_id=current_user.id,
             asset_id=transaction.asset_id,
             quantity=transaction.quantity,
             average_cost=transaction.average_cost

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - MyVault</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom Styles -->
+    <link href="/static/styles.css" rel="stylesheet">
+</head>
+<body class="bg-body-tertiary d-flex align-items-center justify-content-center vh-100">
+
+    <div class="card shadow-sm p-4" style="max-width: 400px; width: 100%;">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold">MyVault</h3>
+            <p class="text-muted">Create a new account</p>
+        </div>
+        
+        <form id="registerForm">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="mb-3">
+                <label for="fullName" class="form-label">Full Name</label>
+                <input type="text" class="form-control" id="fullName" name="fullName">
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="d-grid mb-3">
+                <button type="submit" class="btn btn-primary">Register</button>
+            </div>
+            <div id="alertMessage" class="alert alert-danger d-none" role="alert"></div>
+        </form>
+        
+        <div class="text-center mt-3">
+            <p class="small">Already have an account? <a href="/static/login.html">Sign In</a></p>
+        </div>
+    </div>
+
+    <script src="/static/common.js"></script>
+    <script src="/static/auth.js"></script>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = e.target.username.value;
+            const fullName = e.target.fullName.value;
+            const password = e.target.password.value;
+            const alertBox = document.getElementById('alertMessage');
+            
+            alertBox.classList.add('d-none');
+            
+            const result = await Auth.register(username, password, fullName);
+            
+            if (result.success) {
+                window.location.href = '/';
+            } else {
+                alertBox.textContent = result.message;
+                alertBox.classList.remove('d-none');
+            }
+        });
+    </script>
+</body>
+</html>
