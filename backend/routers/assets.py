@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from backend.database import get_db
-from backend.models import Asset, AssetType, PriceHistory
+from backend.models import Asset, AssetType, PriceHistory, User
+from backend.security import get_current_user
+from backend.services.fetcher import fetch_fund_prices
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from datetime import date, datetime
@@ -83,3 +85,17 @@ async def create_asset(asset: AssetCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(new_asset)
     return new_asset
+
+@router.post("/fetch-prices")
+async def trigger_fetch_prices(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin users can trigger price updates"
+        )
+    
+    await fetch_fund_prices(db)
+    return {"message": "Price fetch triggered successfully"}

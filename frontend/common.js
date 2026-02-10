@@ -1,5 +1,5 @@
-// API Base URL moved to config.js
-// const API_BASE = "";
+// API Base URL
+const API_BASE = "";
 
 // Shared Translations
 const TRANSLATIONS = {
@@ -170,20 +170,54 @@ async function loadLayoutUserData() {
     if (typeof Auth === 'undefined' || !Auth.isAuthenticated()) return;
 
     try {
-        const user = await API.get(Config.ENDPOINTS.ME);
-            
-        const usernameEl = document.getElementById('topbarUsername');
-        const avatarEl = document.getElementById('topbarAvatar');
+        const response = await fetch(`${API_BASE}/auth/me`, {
+            headers: Auth.getHeaders()
+        });
         
-        if (usernameEl) usernameEl.textContent = user.full_name || user.username;
-        if (avatarEl && user.avatar_url) {
-            // Add timestamp to force refresh if image changed
-            avatarEl.src = user.avatar_url + '?t=' + new Date().getTime();
-        } else if (avatarEl) {
-                avatarEl.src = "https://via.placeholder.com/32";
+        if (response.ok) {
+            const user = await response.json();
+            const usernameEl = document.getElementById('topbarUsername');
+            const avatarEl = document.getElementById('topbarAvatar');
+            const fetchBtn = document.getElementById('topbarFetchPricesBtn');
+            
+            if (usernameEl) usernameEl.textContent = user.full_name || user.username;
+            if (avatarEl && user.avatar_url) {
+                avatarEl.src = user.avatar_url + '?t=' + new Date().getTime();
+            } else if (avatarEl) {
+                 avatarEl.src = "https://via.placeholder.com/32";
+            }
+
+            // Admin Button Logic
+            if (user.is_superuser && fetchBtn) {
+                fetchBtn.classList.remove('d-none');
+                fetchBtn.onclick = triggerPriceUpdate;
+            }
         }
     } catch (error) {
         console.error('Failed to load user info', error);
+    }
+}
+
+async function triggerPriceUpdate(e) {
+    e.preventDefault();
+    if (!confirm("Tüm fon fiyatları güncellenecek. Bu işlem biraz sürebilir. Devam etmek istiyor musunuz?")) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/assets/fetch-prices`, {
+            method: 'POST',
+            headers: Auth.getHeaders()
+        });
+
+        if (response.ok) {
+            alert("Fiyat güncelleme işlemi başarıyla başlatıldı.");
+        } else {
+            alert("İşlem başlatılamadı. Yetkiniz olmayabilir.");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Bir hata oluştu.");
     }
 }
 
@@ -204,4 +238,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sidebar toggle is safe to keep as event listener
     const sidebarBtn = document.getElementById('sidebarCollapse');
     if (sidebarBtn) sidebarBtn.addEventListener('click', window.toggleSidebar);
+    
+    // Check for view param in URL (e.g. ?view=assets)
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+    if (viewParam && typeof switchView === 'function') {
+        switchView(viewParam);
+        // Clean URL without reload
+        window.history.replaceState({}, document.title, "/");
+    }
 });

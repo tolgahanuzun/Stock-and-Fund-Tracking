@@ -85,13 +85,7 @@ class AssetAdmin(BaseAdmin):
     list_display = ("id", "code", "name", "type")
     search_fields = ("code", "name")
     list_filter = ("type",)
-    actions = ("fetch_prices_action", "delete_selected_action")
-
-    @action(description="Tüm Fon Fiyatlarını Güncelle (TEFAS)")
-    async def fetch_prices_action(self, objs: list[Asset]) -> None:
-        sessionmaker = self.get_sessionmaker()
-        async with sessionmaker() as session:
-            await fetch_fund_prices(session)
+    # actions = ("delete_selected_action",) # Inherited from BaseAdmin
 
 @register(Portfolio, sqlalchemy_sessionmaker=AsyncSessionLocal)
 class PortfolioAdmin(BaseAdmin):

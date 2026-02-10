@@ -20,12 +20,7 @@ async function updateUserInfo() {
         const avatarEl = document.getElementById('topbarAvatar');
         
         if (usernameEl) usernameEl.textContent = user.full_name || user.username;
-        if (avatarEl && user.avatar_url) {
-            // Add timestamp to force refresh if image changed
-            avatarEl.src = user.avatar_url + '?t=' + new Date().getTime();
-        } else if (avatarEl) {
-                avatarEl.src = "https://via.placeholder.com/32";
-        }
+        avatarEl.src = user.avatar_url;
     } catch (error) {
         console.error('Failed to load user info', error);
     }

@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const uploadAvatarBtn = document.getElementById('uploadAvatarBtn');
     const profileForm = document.getElementById('profileForm');
     const passwordForm = document.getElementById('passwordForm');
-    const logoutBtn = document.getElementById('logoutBtn');
 
     // Toast function
     const showToast = (message, isError = false) => {
@@ -30,13 +29,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load User Data
     try {
-        const user = await API.get(Config.ENDPOINTS.ME);
+        const response = await fetch('/auth/me', { 
+            headers: Auth.getHeaders()
+        });
         
+        if (response.status === 401) {
+            Auth.handleUnauthorized();
+            return;
+        }
+
+        if (!response.ok) throw new Error('Kullanıcı bilgileri alınamadı');
+        
+        const user = await response.json();
         usernameInput.value = user.username;
         fullNameInput.value = user.full_name || '';
         if (user.avatar_url) {
-            avatarImage.src = user.avatar_url;
+            // Force cache refresh
+            avatarImage.src = user.avatar_url + '?t=' + new Date().getTime();
         }
+
     } catch (error) {
         console.error(error);
         showToast('Kullanıcı bilgileri yüklenirken hata oluştu', true);
@@ -47,9 +58,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         
         try {
-            await API.put(Config.ENDPOINTS.ME, {
-                full_name: fullNameInput.value
+            const response = await fetch('/auth/me', {
+                method: 'PUT',
+                headers: Auth.getHeaders(),
+                body: JSON.stringify({
+                    full_name: fullNameInput.value
+                })
             });
+
+            if (response.status === 401) {
+                Auth.handleUnauthorized();
+                return;
+            }
+
+            if (!response.ok) throw new Error('Güncelleme başarısız');
             
             showToast('Profil bilgileri güncellendi');
         } catch (error) {
@@ -83,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const headers = Auth.getHeaders();
             delete headers['Content-Type']; // Let browser set Content-Type with boundary for FormData
 
-            const response = await fetch(`${Config.API_BASE_URL}/auth/me/avatar`, {
+            const response = await fetch('/auth/me/avatar', {
                 method: 'POST',
                 headers: headers,
                 body: formData
@@ -97,8 +119,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!response.ok) throw new Error('Fotoğraf yüklenemedi');
 
             const updatedUser = await response.json();
-
-            avatarImage.src = updatedUser.avatar_url;
+            // Force cache refresh
+            avatarImage.src = updatedUser.avatar_url + '?t=' + new Date().getTime();
             showToast('Profil fotoğrafı güncellendi');
             uploadAvatarBtn.disabled = true;
             avatarInput.value = '';
@@ -122,22 +144,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            await API.post(Config.ENDPOINTS.CHANGE_PASSWORD, {
-                current_password: currentPassword,
-                new_password: newPassword
+            const response = await fetch('/auth/me/password', {
+                method: 'POST',
+                headers: Auth.getHeaders(),
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                })
             });
+
+            const data = await response.json();
+
+            if (response.status === 401) {
+                Auth.handleUnauthorized();
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(data.detail || 'Şifre değiştirilemedi');
+            }
 
             showToast('Şifre başarıyla değiştirildi');
             passwordForm.reset();
         } catch (error) {
             console.error(error);
-            // API throws structured error, error.message is from backend or default
-            showToast(error.message || 'Şifre değiştirilemedi', true);
+            showToast(error.message, true);
         }
-    });
-
-    // Logout
-    logoutBtn.addEventListener('click', () => {
-        Auth.logout();
     });
 });
