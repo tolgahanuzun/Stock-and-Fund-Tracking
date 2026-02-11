@@ -83,13 +83,32 @@ async function loadPortfolio() {
         const totalProfitEl = document.getElementById('totalProfit');
         totalProfitEl.textContent = `${totalProf >= 0 ? '+' : ''}${formatCurrency(totalProf)}`;
         
+        // Calculate Profit/Loss Ratio
+        const profitRatio = totalCost > 0 ? (totalProf / totalCost * 100) : 0;
+        const totalProfitRatioEl = document.getElementById('totalProfitRatio');
+        if (totalProfitRatioEl) {
+             totalProfitRatioEl.textContent = `%${formatNumber(profitRatio)}`;
+        }
+
         const profitCard = document.getElementById('profitCard');
+        const profitRatioCard = document.getElementById('profitRatioCard');
+        
         if (totalProf < 0) {
             profitCard.classList.remove('bg-success');
             profitCard.classList.add('bg-danger');
+            
+            if (profitRatioCard) {
+                profitRatioCard.classList.remove('bg-info');
+                profitRatioCard.classList.add('bg-danger');
+            }
         } else {
             profitCard.classList.remove('bg-danger');
             profitCard.classList.add('bg-success');
+            
+            if (profitRatioCard) {
+                profitRatioCard.classList.remove('bg-danger');
+                profitRatioCard.classList.add('bg-info');
+            }
         }
         
     } catch (error) {

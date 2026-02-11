@@ -50,21 +50,34 @@ async function loadDashboardData() {
             // Calculate percentage if cost > 0
             const percentage = lastDay.total_cost > 0 ? (profit / lastDay.total_cost * 100) : 0;
             
-            totalProfitEl.textContent = `${profit >= 0 ? '+' : ''}${formatCurrency(profit)} (%${formatNumber(percentage)})`;
+            totalProfitEl.textContent = `${profit >= 0 ? '+' : ''}${formatCurrency(profit)}`;
             
             const profitCard = document.getElementById('profitCard');
+            const profitRatioCard = document.getElementById('profitRatioCard');
+            const totalProfitRatioEl = document.getElementById('totalProfitRatio');
+
             if (profit < 0) {
                 profitCard.classList.remove('bg-success');
                 profitCard.classList.add('bg-danger');
+                
+                profitRatioCard.classList.remove('bg-info'); // or success
+                profitRatioCard.classList.add('bg-danger');
             } else {
                 profitCard.classList.remove('bg-danger');
                 profitCard.classList.add('bg-success');
+                
+                profitRatioCard.classList.remove('bg-danger');
+                profitRatioCard.classList.add('bg-info'); // or success
             }
+            
+            totalProfitRatioEl.textContent = `%${formatNumber(percentage)}`;
+
         } else {
             // No data
             document.getElementById('totalValue').textContent = formatCurrency(0);
             document.getElementById('totalCost').textContent = formatCurrency(0);
             document.getElementById('totalProfit').textContent = formatCurrency(0);
+            document.getElementById('totalProfitRatio').textContent = '%0.00';
         }
 
         // Draw Chart
