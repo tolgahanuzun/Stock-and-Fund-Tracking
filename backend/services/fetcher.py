@@ -1,9 +1,13 @@
 from tefas import Crawler
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import cast, Date, func, select
+from sqlalchemy import cast, Date, func, select, desc
 from backend.models import Asset, PriceHistory, AssetType
 from datetime import datetime, date, timedelta, time
 import logging
+import requests
+from bs4 import BeautifulSoup
+import time
+import random
 
 # Logger configuration
 logging.basicConfig(level=logging.INFO)
@@ -11,102 +15,185 @@ logger = logging.getLogger(__name__)
 
 async def fetch_fund_prices(db: AsyncSession):
     """
-    Fetches latest prices for all funds in the database from TEFAS and saves them.
-    Optimized to minimize DB queries and prevent hourly duplicates.
+    Fetches latest prices for all funds in the database from TEFAS web page HTML and saves them.
+    Iterates through all tracked funds and scrapes the price individually.
+    Implements ordering by last update time (oldest first) and retry mechanism.
     """
-    tefas = Crawler()
     
-    # 1. Get all assets of type FUND
-    result = await db.execute(select(Asset).filter(Asset.type == AssetType.FUND.value))
+    # 1. Get all assets of type FUND, ordered by last price update date ascending (nulls first)
+    # We want funds that haven't been updated recently to be processed first.
+    
+    # Subquery to find the max date for each asset
+    subquery = (
+        select(PriceHistory.asset_id, func.max(PriceHistory.date).label("last_update"))
+        .group_by(PriceHistory.asset_id)
+        .subquery()
+    )
+
+    # Main query joining Asset with the subquery
+    query = (
+        select(Asset)
+        .outerjoin(subquery, Asset.id == subquery.c.asset_id)
+        .filter(Asset.type == AssetType.FUND.value)
+        .order_by(subquery.c.last_update.asc().nullsfirst())
+    )
+    
+    result = await db.execute(query)
     funds = result.scalars().all()
     
     if not funds:
         logger.info("No funds found to track.")
         return
 
-    # Create a map of Code -> ID for quick lookup
-    fund_map = {fund.code: fund.id for fund in funds}
-    fund_codes = list(fund_map.keys())
-    
-    # 2. Fetch data from TEFAS (Last 3 days to be safe)
-    start_dt = date.today() - timedelta(days=2)
+    today = date.today()
+    new_records_count = 0
+
+    # Initialize Session with browser-like headers
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
+    })
+
+    # Initial request to main page to get cookies/session tokens
+    try:
+        logger.info("Initializing TEFAS session...")
+        session.get("https://www.tefas.gov.tr/Default.aspx", timeout=10)
+        time.sleep(1) # Wait a bit after initial connection
+    except Exception as e:
+        logger.warning(f"Initial session setup failed, continuing might fail: {e}")
+
+    for fund in funds:
+        retry_count = 0
+        max_retries = 10
+        price = None
+        
+        while retry_count < max_retries:
+            try:
+                # Add random delay to avoid WAF blocking (increasing with retries)
+                delay = random.uniform(0.5, 2.0) + (retry_count * 0.5)
+                time.sleep(delay)
+                
+                # Fetch price from web using the shared session
+                price = fetch_fund_price_from_web(fund.code, session)
+                
+                if price is not None:
+                    break # Success
+                
+                # If price is None (e.g. CAPTCHA or parse error), retry
+                retry_count += 1
+                logger.warning(f"Attempt {retry_count}/{max_retries} failed for {fund.code}. Retrying...")
+                
+            except Exception as e:
+                logger.error(f"Error processing fund {fund.code} (Attempt {retry_count + 1}): {e}")
+                retry_count += 1
+        
+        if price is None:
+            logger.error(f"Failed to fetch price for {fund.code} after {max_retries} attempts. Skipping.")
+            continue
+
+        try:
+            # Check existence
+            existing_query = select(PriceHistory).filter(
+                PriceHistory.asset_id == fund.id,
+                cast(PriceHistory.date, Date) == today
+            )
+            existing_result = await db.execute(existing_query)
+            existing_record = existing_result.scalars().first()
+            
+            if existing_record:
+                # Update existing record if needed
+                if existing_record.price != price:
+                    existing_record.price = price
+                    existing_record.date = datetime.now()
+                    logger.info(f"Updated price for {fund.code}: {price}")
+            else:
+                # Create new record
+                new_record = PriceHistory(
+                    asset_id=fund.id,
+                    date=datetime.now(),
+                    price=price
+                )
+                db.add(new_record)
+                new_records_count += 1
+                logger.info(f"New price for {fund.code}: {price}")
+        except Exception as e:
+             logger.error(f"Database error for {fund.code}: {e}")
+
+    try:
+        await db.commit()
+        if new_records_count > 0:
+            logger.info(f"Successfully added {new_records_count} new price records.")
+    except Exception as e:
+        logger.error(f"Database commit error: {e}")
+        await db.rollback()
+
+def fetch_fund_price_from_web(fund_code: str, session: requests.Session = None) -> float | None:
+    """
+    Fetches the latest price of a specific fund directly from TEFAS web page HTML.
+    Target URL: https://www.tefas.gov.tr/FonAnaliz.aspx?FonKod={fund_code}
+    Uses a requests.Session if provided to maintain cookies.
+    """
+    url = f"https://www.tefas.gov.tr/FonAnaliz.aspx?FonKod={fund_code.upper()}"
     
     try:
-        # Fetching bulk data
-        # Note: Crawler fetch is synchronous
-        result = tefas.fetch(start=start_dt.strftime("%Y-%m-%d"), 
-                             columns=["code", "date", "price"])
-        
-        if result is None or result.empty:
-            logger.warning("Could not fetch data from TEFAS.")
-            return
-
-        # 3. Filter only our funds
-        result = result[result['code'].isin(fund_codes)]
-        
-        if result.empty:
-            logger.info("No data found for tracked funds in the last few days.")
-            return
-
-        # 4. Prepare data for DAILY check (Optimized)
-        
-        # We need to know if we already have price for (asset_id, date)
-        # Fetch existing records from start_dt onwards
-        
-        existing_records_query = select(PriceHistory.asset_id, PriceHistory.date).filter(
-            PriceHistory.asset_id.in_(fund_map.values()),
-            PriceHistory.date >= start_dt
-        )
-        existing_records_result = await db.execute(existing_records_query)
-        existing_records = existing_records_result.all()
-        
-        # Build a set of (asset_id, date_string) for O(1) lookup
-        # We use date() part only to ensure one price per day per asset
-        existing_keys = set()
-        for rec in existing_records:
-            asset_id = rec[0]
-            rec_date = rec[1] 
-            if rec_date:
-                existing_keys.add((asset_id, rec_date.date()))
-        
-        new_records = []
-        
-        for index, row in result.iterrows():
-            code = row['code']
-            asset_id = fund_map.get(code)
-            
-            # TEFAS returns a Timestamp, convert to date/datetime
-            # row['date'] from tefas crawler is usually a datetime object (pandas timestamp)
-            tefas_date = row['date']
-            
-            # Ensure we have a date object for comparison
-            if hasattr(tefas_date, 'date'):
-                price_date_obj = tefas_date.date()
-            else:
-                price_date_obj = tefas_date # Fallback if already date
-            
-            # Key for daily check
-            current_key = (asset_id, price_date_obj)
-            
-            if current_key not in existing_keys:
-                price_val = float(row['price'])
-                
-                new_records.append(PriceHistory(
-                    asset_id=asset_id,
-                    date=tefas_date, # Save the full datetime from TEFAS
-                    price=price_val
-                ))
-                # Add to set to prevent duplicates within the same batch
-                existing_keys.add(current_key)
-        
-        # 5. Bulk Insert
-        if new_records:
-            db.add_all(new_records)
-            await db.commit()
-            logger.info(f"Added {len(new_records)} new price records.")
+        # Use provided session or create a new temporary one
+        if session:
+            req_obj = session
         else:
-            logger.info(f"No new price records found.")
+            req_obj = requests
+            # If creating new request without session, at least add User-Agent
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0'
+            }
+        
+        # If using session, headers are already set in session
+        if session:
+            response = req_obj.get(url, timeout=10)
+        else:
+            response = req_obj.get(url, headers=headers, timeout=10)
             
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Check for CAPTCHA/WAF page by looking for specific elements or title
+        if "captcha" in response.text.lower() or "support id" in response.text.lower():
+            logger.warning(f"CAPTCHA/WAF detected for {fund_code}")
+            return None
+
+        # Find top-list ul
+        top_list = soup.find('ul', class_='top-list')
+        if not top_list:
+            # logger.warning(f"Could not find .top-list for fund {fund_code}")
+            # Silently fail or log debug to avoid spamming logs if WAF blocks structure
+            return None
+            
+        # Get first li element which usually contains the Last Price
+        first_li = top_list.find('li')
+        if not first_li:
+            return None
+            
+        # Find the span inside the li that contains the value
+        span = first_li.find('span')
+        if not span:
+            return None
+            
+        price_text = span.get_text(strip=True)
+        # Format: 5,348167 -> 5.348167
+        clean_price = price_text.replace('.', '').replace(',', '.')
+        
+        return float(clean_price)
+
     except Exception as e:
-        logger.error(f"Data fetch error: {e}")
-        await db.rollback()
+        logger.error(f"Error fetching price for {fund_code} from web: {e}")
+        return None
