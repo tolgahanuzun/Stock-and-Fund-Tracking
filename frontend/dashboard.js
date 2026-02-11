@@ -1,0 +1,230 @@
+document.addEventListener('DOMContentLoaded', () => {
+    if (!Auth.requireAuth()) return;
+    
+    // Initial Load
+    updateUserInfo();
+    loadDashboardData();
+    
+    // Modal handlers (for Sidebar buttons)
+    loadAssetsForSelect();
+    document.getElementById('addAssetForm').addEventListener('submit', handleAddAsset);
+    document.getElementById('addTransactionForm').addEventListener('submit', handleAddTransaction);
+});
+
+// Update Topbar User Info (Same as app.js)
+async function updateUserInfo() {
+    try {
+        const user = await API.get(Config.ENDPOINTS.ME);
+        const usernameEl = document.getElementById('topbarUsername');
+        const avatarEl = document.getElementById('topbarAvatar');
+        if (usernameEl) usernameEl.textContent = user.full_name || user.username;
+        avatarEl.src = user.avatar_url;
+    } catch (error) {
+        console.error('Failed to load user info', error);
+    }
+}
+
+// Override global changeLanguage
+const baseChangeLanguage = window.changeLanguage;
+window.changeLanguage = function(lang) {
+    if (baseChangeLanguage) {
+        baseChangeLanguage(lang, loadDashboardData);
+    }
+}
+
+let historyChart = null;
+
+async function loadDashboardData() {
+    try {
+        const historyData = await API.get(Config.ENDPOINTS.HISTORY);
+        
+        // Update Summary Cards with latest day's data
+        if (historyData.length > 0) {
+            const lastDay = historyData[historyData.length - 1];
+            
+            document.getElementById('totalValue').textContent = formatCurrency(lastDay.total_value);
+            document.getElementById('totalCost').textContent = formatCurrency(lastDay.total_cost);
+            
+            const totalProfitEl = document.getElementById('totalProfit');
+            const profit = lastDay.total_profit;
+            // Calculate percentage if cost > 0
+            const percentage = lastDay.total_cost > 0 ? (profit / lastDay.total_cost * 100) : 0;
+            
+            totalProfitEl.textContent = `${profit >= 0 ? '+' : ''}${formatCurrency(profit)} (%${formatNumber(percentage)})`;
+            
+            const profitCard = document.getElementById('profitCard');
+            if (profit < 0) {
+                profitCard.classList.remove('bg-success');
+                profitCard.classList.add('bg-danger');
+            } else {
+                profitCard.classList.remove('bg-danger');
+                profitCard.classList.add('bg-success');
+            }
+        } else {
+            // No data
+            document.getElementById('totalValue').textContent = formatCurrency(0);
+            document.getElementById('totalCost').textContent = formatCurrency(0);
+            document.getElementById('totalProfit').textContent = formatCurrency(0);
+        }
+
+        // Draw Chart
+        renderChart(historyData);
+
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+    }
+}
+
+function renderChart(data) {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    
+    const labels = data.map(item => item.date);
+    const values = data.map(item => item.total_value);
+    const costs = data.map(item => item.total_cost);
+    // const profits = data.map(item => item.total_profit); // Maybe too crowded?
+
+    if (historyChart) {
+        historyChart.destroy();
+    }
+
+    historyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Total Value',
+                    data: values,
+                    borderColor: 'rgb(54, 162, 235)', // Blue
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                },
+                {
+                    label: 'Total Cost',
+                    data: costs,
+                    borderColor: 'rgb(108, 117, 125)', // Grey
+                    backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += formatCurrency(context.parsed.y);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value); // Simplified currency
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Modal Handlers (Copied from app.js)
+async function loadAssetsForSelect() {
+    try {
+        const data = await API.get(Config.ENDPOINTS.ASSETS);
+        const select = document.getElementById('assetSelect');
+        if (!select) return;
+        select.innerHTML = '';
+        data.forEach(asset => {
+            const option = document.createElement('option');
+            option.value = asset.id;
+            option.textContent = `${asset.code} - ${asset.name}`;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading assets:', error);
+    }
+}
+
+async function handleAddAsset(e) {
+    e.preventDefault();
+    // Assuming TRANSLATIONS is available via common.js or we rely on hardcoded for now?
+    // app.js used TRANSLATIONS[currentLang].
+    // Let's assume common.js sets it up or use fallbacks.
+    const t = (window.TRANSLATIONS && window.TRANSLATIONS[window.currentLang]) || {
+        alert_asset_added: "Asset added successfully",
+        alert_error: "An error occurred"
+    };
+
+    const formData = new FormData(e.target);
+    const data = {
+        code: formData.get('code').toUpperCase(),
+        name: formData.get('name'),
+        type: formData.get('type')
+    };
+    
+    try {
+        await API.post(Config.ENDPOINTS.ASSETS, data);
+        alert(t.alert_asset_added);
+        loadAssetsForSelect(); 
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addAssetModal'));
+        modal.hide();
+        e.target.reset();
+    } catch (error) {
+        console.error('Add asset error:', error);
+        alert(t.alert_error);
+    }
+}
+
+async function handleAddTransaction(e) {
+    e.preventDefault();
+    const t = (window.TRANSLATIONS && window.TRANSLATIONS[window.currentLang]) || {
+        alert_transaction_added: "Transaction added successfully",
+        alert_error: "An error occurred"
+    };
+
+    const formData = new FormData(e.target);
+    const data = {
+        asset_id: parseInt(formData.get('asset_id')),
+        quantity: parseFloat(formData.get('quantity')),
+        average_cost: parseFloat(formData.get('average_cost'))
+    };
+    
+    try {
+        await API.post(Config.ENDPOINTS.TRANSACTION, data);
+        alert(t.alert_transaction_added);
+        // Reload dashboard data to reflect changes
+        loadDashboardData(); 
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addTransactionModal'));
+        modal.hide();
+        e.target.reset();
+    } catch (error) {
+        console.error('Add transaction error:', error);
+        alert(t.alert_error);
+    }
+}

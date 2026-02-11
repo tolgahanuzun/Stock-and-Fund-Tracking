@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, Date
 from backend.database import get_db
 from backend.models import Portfolio, Asset, PriceHistory, User
 from backend.security import get_current_user
 from pydantic import BaseModel
 from typing import List
+from datetime import datetime
 
 router = APIRouter(
     prefix="/portfolio",
@@ -20,6 +21,12 @@ class PortfolioBase(BaseModel):
 class TransactionCreate(PortfolioBase):
     pass 
     # user_id is removed, inferred from token
+
+class PortfolioHistoryItem(BaseModel):
+    date: str
+    total_value: float
+    total_cost: float
+    total_profit: float
 
 class PortfolioItemResponse(PortfolioBase):
     id: int
@@ -91,6 +98,96 @@ async def read_portfolio(
         ))
         
     return result_list
+
+@router.get("/history", response_model=List[PortfolioHistoryItem])
+async def read_portfolio_history(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 1. Fetch user portfolio
+    result = await db.execute(select(Portfolio).filter(Portfolio.user_id == current_user.id))
+    items = result.scalars().all()
+    
+    if not items:
+        return []
+
+    # Map asset quantities for simulation
+    portfolio_map = {item.asset_id: {"quantity": item.quantity, "avg_cost": item.average_cost} for item in items}
+    asset_ids = list(portfolio_map.keys())
+
+    # 2. Get history prices for these assets
+    # We select all history first, then process in Python to avoid SQLite date casting issues
+    history_stmt = select(
+        PriceHistory.date,
+        PriceHistory.asset_id,
+        PriceHistory.price
+    ).filter(
+        PriceHistory.asset_id.in_(asset_ids)
+    ).order_by(PriceHistory.date)
+    
+    history_result = await db.execute(history_stmt)
+    history_rows = history_result.all()
+    
+    # 3. Aggregate in Python with forward-fill
+    date_asset_price_map = {}
+    all_dates = set()
+    
+    for row in history_rows:
+        # row.date might be string or datetime depending on SQLite driver config
+        # Safe handling
+        raw_date = row.date
+        if isinstance(raw_date, str):
+            try:
+                dt = datetime.fromisoformat(raw_date)
+                day = dt.date()
+            except:
+                 # Fallback if format is different
+                 day = datetime.now().date() # Should not happen ideally
+        else:
+            day = raw_date.date()
+            
+        if day not in date_asset_price_map:
+            date_asset_price_map[day] = {}
+        # If multiple entries for same day, last one wins (due to order_by)
+        date_asset_price_map[day][row.asset_id] = row.price
+        all_dates.add(day)
+        
+    sorted_dates = sorted(list(all_dates))
+    
+    response = []
+    last_known_prices = {} # asset_id -> price
+    
+    for day in sorted_dates:
+        # Update prices for today
+        if day in date_asset_price_map:
+            for asset_id, price in date_asset_price_map[day].items():
+                last_known_prices[asset_id] = price
+        
+        # Calculate totals
+        daily_value = 0.0
+        daily_cost = 0.0
+        
+        for asset_id, item_data in portfolio_map.items():
+            # Only include assets we have a price for (or have seen a price for)
+            if asset_id in last_known_prices:
+                qty = item_data["quantity"]
+                cost = item_data["avg_cost"]
+                price = last_known_prices[asset_id]
+                
+                daily_value += qty * price
+                daily_cost += qty * cost
+        
+        # Only add to response if we have some value (optional)
+        profit = daily_value - daily_cost
+        
+        response.append(PortfolioHistoryItem(
+            date=day.strftime("%Y-%m-%d"),
+            total_value=daily_value,
+            total_cost=daily_cost,
+            total_profit=profit
+        ))
+        
+    return response
 
 @router.get("/asset/{asset_id}", response_model=PortfolioItemResponse)
 async def read_portfolio_asset(

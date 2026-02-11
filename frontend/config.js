@@ -9,6 +9,7 @@ const Config = {
         PORTFOLIO: '/portfolio/',
         ASSETS: '/assets/',
         TRANSACTION: '/portfolio/transaction',
+        HISTORY: '/portfolio/history',
         SEARCH: '/assets/search'
     }
 };

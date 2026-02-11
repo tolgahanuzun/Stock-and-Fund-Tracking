@@ -32,20 +32,21 @@ async def fetch_fund_prices(db: AsyncSession):
 
     # Main query joining Asset with the subquery
     query = (
-        select(Asset)
+        select(Asset, subquery.c.last_update)
         .outerjoin(subquery, Asset.id == subquery.c.asset_id)
         .filter(Asset.type == AssetType.FUND.value)
         .order_by(subquery.c.last_update.asc().nullsfirst())
     )
     
     result = await db.execute(query)
-    funds = result.scalars().all()
+    funds_data = result.all()
     
-    if not funds:
+    if not funds_data:
         logger.info("No funds found to track.")
         return
 
     today = date.today()
+    one_hour_ago = datetime.now() - timedelta(hours=1)
     new_records_count = 0
 
     # Initialize Session with browser-like headers
@@ -72,7 +73,25 @@ async def fetch_fund_prices(db: AsyncSession):
     except Exception as e:
         logger.warning(f"Initial session setup failed, continuing might fail: {e}")
 
-    for fund in funds:
+    for row in funds_data:
+        fund = row[0]
+        last_update = row[1]
+        
+        # Check if updated in last 1 hour
+        if last_update:
+            # last_update might be datetime or string depending on DB driver
+            if isinstance(last_update, str):
+                 try:
+                     last_update_dt = datetime.fromisoformat(last_update)
+                 except:
+                     last_update_dt = None
+            else:
+                 last_update_dt = last_update
+                 
+            if last_update_dt and last_update_dt > one_hour_ago:
+                logger.info(f"Skipping {fund.code}, updated recently at {last_update_dt}")
+                continue
+
         retry_count = 0
         max_retries = 10
         price = None

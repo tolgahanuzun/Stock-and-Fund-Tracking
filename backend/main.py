@@ -81,6 +81,10 @@ async def read_root():
 async def read_profile():
     return FileResponse('frontend/profile.html')
 
+@app.get("/dashboard.html")
+async def read_dashboard():
+    return FileResponse('frontend/dashboard.html')
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     file_path = "frontend/static/favicon.ico"
