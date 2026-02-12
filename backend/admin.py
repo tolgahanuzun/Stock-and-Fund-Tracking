@@ -96,3 +96,7 @@ class PortfolioAdmin(BaseAdmin):
 class PriceHistoryAdmin(BaseAdmin):
     list_display = ("id", "asset", "date", "price")
     list_filter = ("asset", "date")
+    fields = ("asset", "price")
+    formfield_overrides = {
+        "date": (WidgetType.Input, {}),
+    }

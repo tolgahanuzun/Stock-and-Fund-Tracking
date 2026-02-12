@@ -23,6 +23,10 @@ class User(Base):
 
     portfolios = relationship("Portfolio", back_populates="user")
 
+    def __str__(self):
+        return f"ID:{self.id}: {self.username} - {self.full_name}"
+
+
 class Asset(Base):
     __tablename__ = "assets"
 
@@ -33,6 +37,9 @@ class Asset(Base):
     
     price_history = relationship("PriceHistory", back_populates="asset")
     portfolios = relationship("Portfolio", back_populates="asset")
+
+    def __str__(self):
+        return f"ID:{self.id}: {self.code} - {self.name} - {self.type}"
 
 class Portfolio(Base):
     __tablename__ = "portfolios"
@@ -46,6 +53,8 @@ class Portfolio(Base):
     user = relationship("User", back_populates="portfolios")
     asset = relationship("Asset", back_populates="portfolios")
 
+    def __str__(self):
+        return f"ID:{self.id}: {self.quantity} - {self.average_cost}"
     # A user can only hold one record for an asset in their portfolio (Quantity increases)
     __table_args__ = (
         UniqueConstraint('user_id', 'asset_id', name='uix_portfolio_user_asset'),
@@ -60,6 +69,9 @@ class PriceHistory(Base):
     price = Column(Float)
     
     asset = relationship("Asset", back_populates="price_history")
+
+    def __str__(self):
+        return f"ID:{self.id}: {self.price}"
 
     # An asset can have only one price for the same date.
     # Note: With DateTime, uniqueness is down to the second. 
