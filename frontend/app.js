@@ -77,11 +77,11 @@ async function loadPortfolio() {
             tableBody.appendChild(row);
         });
         
-        document.getElementById('totalValue').textContent = formatCurrency(totalVal);
-        document.getElementById('totalCost').textContent = formatCurrency(totalCost);
+        document.getElementById('totalValue').textContent = formatCurrency(totalVal, 0, 0);
+        document.getElementById('totalCost').textContent = formatCurrency(totalCost, 0, 0);
         
         const totalProfitEl = document.getElementById('totalProfit');
-        totalProfitEl.textContent = `${totalProf >= 0 ? '+' : ''}${formatCurrency(totalProf)}`;
+        totalProfitEl.textContent = `${totalProf >= 0 ? '+' : ''}${formatCurrency(totalProf, 0, 0)}`;
         
         // Calculate Profit/Loss Ratio
         const profitRatio = totalCost > 0 ? (totalProf / totalCost * 100) : 0;

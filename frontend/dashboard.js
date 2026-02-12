@@ -42,15 +42,15 @@ async function loadDashboardData() {
         if (historyData.length > 0) {
             const lastDay = historyData[historyData.length - 1];
             
-            document.getElementById('totalValue').textContent = formatCurrency(lastDay.total_value);
-            document.getElementById('totalCost').textContent = formatCurrency(lastDay.total_cost);
+            document.getElementById('totalValue').textContent = formatCurrency(lastDay.total_value, 0, 0);
+            document.getElementById('totalCost').textContent = formatCurrency(lastDay.total_cost, 0, 0);
             
             const totalProfitEl = document.getElementById('totalProfit');
             const profit = lastDay.total_profit;
             // Calculate percentage if cost > 0
             const percentage = lastDay.total_cost > 0 ? (profit / lastDay.total_cost * 100) : 0;
             
-            totalProfitEl.textContent = `${profit >= 0 ? '+' : ''}${formatCurrency(profit)}`;
+            totalProfitEl.textContent = `${profit >= 0 ? '+' : ''}${formatCurrency(profit, 0, 0)}`;
             
             const profitCard = document.getElementById('profitCard');
             const profitRatioCard = document.getElementById('profitRatioCard');
@@ -140,7 +140,7 @@ function renderChart(data) {
                                 label += ': ';
                             }
                             if (context.parsed.y !== null) {
-                                label += formatCurrency(context.parsed.y);
+                                label += formatCurrency(context.parsed.y, 0, 0);
                             }
                             return label;
                         }
@@ -157,7 +157,7 @@ function renderChart(data) {
                     beginAtZero: false,
                     ticks: {
                         callback: function(value) {
-                            return formatCurrency(value); // Simplified currency
+                            return formatCurrency(value, 0, 0); // Simplified currency
                         }
                     }
                 }

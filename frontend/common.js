@@ -98,9 +98,9 @@ let currentLang = localStorage.getItem('app_lang') || 'en';
 let currentTheme = localStorage.getItem('app_theme') || 'light';
 
 // Helper: Format Currency
-function formatCurrency(value) {
+function formatCurrency(value, minDecimals = 2, maxDecimals = 4) {
     const t = TRANSLATIONS[currentLang];
-    return `${value.toLocaleString(currentLang === 'tr' ? 'tr-TR' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}${t.currency}`;
+    return `${value.toLocaleString(currentLang === 'tr' ? 'tr-TR' : 'en-US', { minimumFractionDigits: minDecimals, maximumFractionDigits: maxDecimals })}${t.currency}`;
 }
 
 // Helper: Format Number
