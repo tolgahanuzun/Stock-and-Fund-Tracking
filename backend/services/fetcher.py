@@ -120,6 +120,10 @@ async def fetch_fund_prices(db: AsyncSession):
             logger.error(f"Failed to fetch price for {fund.code} after {max_retries} attempts. Skipping.")
             continue
 
+        if price == 0:
+            logger.warning(f"Fetched price is 0 for {fund.code}. Skipping update.")
+            continue
+
         try:
             # Check existence
             existing_query = select(PriceHistory).filter(
