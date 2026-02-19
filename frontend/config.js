@@ -1,6 +1,6 @@
 // Configuration
 const Config = {
-    API_BASE_URL: "http://localhost:8000", // Empty for same origin, or e.g. "http://localhost:8000"
+    API_BASE_URL: "", // Empty for same origin, or e.g. "http://localhost:8000"
     ENDPOINTS: {
         LOGIN: '/auth/login',
         REGISTER: '/auth/register',
